@@ -1,4 +1,4 @@
-# privateblockchain-withapi
+# blockchain-notary-service
 
 ## Nodejs framework
 
