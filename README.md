@@ -1,4 +1,4 @@
-# privateblockchain-withapi
+# blockchain-notary-service
 
 ## Nodejs framework
 
@@ -29,7 +29,7 @@ URL configured in this Project : `http://localhost:9000`
         - method : POST
         - uri : /block
         - content-type : application/json
-        - Request body : ` 
+        - Request body : 
             {
                 "body" : "sample data",
                 "address": "142BDCeSGbXjWKaAnYXbMpZ6sbrSAo3DpZ",
@@ -39,26 +39,25 @@ URL configured in this Project : `http://localhost:9000`
                     "story": "Found star using https://www.google.com/sky/"
                 }
             }
-        `
+        
     
     - Endpoint 3
         - method : POST
         - uri : /requestValidation
-        - Request body : `
+        - Request body : 
             {
                 "address" : "142BDCeSGbXjWKaAnYXbMpZ6sbrSAo3DpZ"
             }
-        `
+        
     - Endpoint 4
         - method : POST
         - uri : /message-signature/validate
-        - Request body : `
+        - Request body : 
             {
                 "address": "142BDCeSGbXjWKaAnYXbMpZ6sbrSAo3DpZ",
                 "signature": "H6ZrGrF0Y4rMGBMRT2+hHWGbThTIyhBS0dNKQRov9Yg6GgXcHxtO9GJN4nwD2yNXpnXHTWU9i+qdw5vpsooryLU="
             }
-        `
-    
+        
     - Endpoint 5
         - method : GET
         - uri : /stars/address:[ADDRESS]
