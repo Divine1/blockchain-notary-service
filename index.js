@@ -4,7 +4,8 @@ const simplechain = require("./simpleChain");
 const db = require("./levelSandbox");
 const bodyParser = require("body-parser");
 const url = require('url');
-
+const bitcoin = require('bitcoinjs-lib');
+const bitcoinMessage = require('bitcoinjs-message');
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -56,7 +57,10 @@ app.post("/block",(req,res)=>{
     let story = star.story;
     let storyBuffer = Buffer.from(story, 'utf8').toString("hex");
     let userData = maintainState.filter((value,key)=>(value.address == address));
-    userData = userData[0];
+    
+    if(userData.length > 0 ){
+        userData = userData[0];
+
     let dataResponse = {
         hash : "",
         height : 0,
@@ -102,6 +106,13 @@ app.post("/block",(req,res)=>{
             })
         });
     }
+    }
+    else{
+        res.send({
+            "status" : ERROR,
+            "body" : "users not found",
+        })
+    }
 });
 
 // http://localhost:8000/requestValidation
@@ -124,15 +135,21 @@ app.post("/requestValidation",(req,res)=>{
 
 //http://localhost:8000/message-signature/validate
 app.post("/message-signature/validate",(req,res)=>{
-    console.log("in /message-signature/validate post method");
+    console.log("ikkkn /message-signature/validate post method");
 
-    const address = req.body.address;
+    let address = req.body.address;
     const signature = req.body.signature;
     const currentRequestTimeStamp = Date.now();
     console.log("req.body ",req.body)
 
     let userData = maintainState.filter((value,key)=>(value.address == address));
-    if(userData.length ==1){
+  console.log("userData ",userData);
+  userData = userData[0];
+    let message = userData.message;
+    console.log(bitcoinMessage.verify(userData.message, address, signature));
+
+    if(bitcoinMessage.verify(userData.message, address, signature))
+    {
         userData = userData[0];
         let remainingSeconds = (currentRequestTimeStamp - userData.requestTimeStamp)/1000;
         let calValidationWindow = 300 - Math.round(remainingSeconds);
@@ -156,7 +173,7 @@ app.post("/message-signature/validate",(req,res)=>{
     }
     else{
         res.send({"error" : "invalid address/signature","address":address});
-    } 
+    }
 });
 
 
