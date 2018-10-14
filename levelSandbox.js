@@ -13,6 +13,60 @@ const addLevelDBData =  (key,value) =>{
   })
 };
 
+
+const insertAddress =(address,addressObject)=>{
+    console.log("in levelSandbox insertAddress addressObject ",addressObject)
+    return new Promise(function(resolve,reject){
+        db.put(address, addressObject, function (err) {
+            if (err){ 
+                console.log('Ooops!', err);
+                resolve({"error" : "insertAddress error exists", "message" : err})
+            }
+            else{
+                resolve({"error" : ""})
+            }
+            console.log("addressObject inserted")
+        })
+    })
+};
+
+const getAddress = (address) =>{
+    const ERROR_ADDRESS_NOT_EXISTS = "ADDRESS NOT EXISTS";
+    console.log("in levelSandbox getAddress address ",address)
+    return new Promise(function(resolve,reject){
+        db.get(address, function (err, value) {
+            if (err) {
+                console.log('Ooops!', err) // likely the key was not found
+                resolve({"error" : ERROR_ADDRESS_NOT_EXISTS, "message" : err})
+            }
+            else{
+                
+                console.log('addressObject = ' , JSON.parse(value))
+                resolve({
+                    "error" : "",
+                    "response" : JSON.parse(value)
+                })
+            }
+        })
+    })
+}
+
+const deleteAddress = (address) =>{
+    console.log("in levelSandbox deleteAddress address ",address)
+    return new Promise(function(resolve,reject){
+        db.del(address, function (err) {
+            if (err){
+                console.log('Ooops!', err) // likely the key was not found
+                resolve({"error" : "deleteAddress error while deleting", "message" : err})
+            }
+            else{
+                resolve({"error" : ""});
+            }
+            
+        });
+    })
+};
+
 // Get data from levelDB with key
  const getLevelDBData = (key)=>{
     return new Promise(function(resolve,reject){
@@ -140,4 +194,5 @@ var getBlockUsingHeight = (blockheight)=>{
 };
 
 module.exports = {addLevelDBData,getLevelDBData,addDataToLevelDB,getBlockChainLength,getBlockUsingHeight,printAllBlocks,
-    getBlocksWithAddress,getBlocksWithHash};
+    getBlocksWithAddress,getBlocksWithHash,
+    insertAddress,getAddress,deleteAddress};

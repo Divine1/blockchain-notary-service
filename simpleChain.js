@@ -109,6 +109,21 @@ class Blockchain{
       }
     }
 
+    async getAddress(address){
+      const response = await db.getAddress(address);
+      return response;
+    }
+
+    async deleteAddress(address){
+      const response = await db.deleteAddress(address);
+      return response;
+    }
+
+    async insertAddress(addressObj){
+      const response = await db.insertAddress(addressObj.address,JSON.stringify(addressObj));
+      return response;
+    }
+
 }
 
 var genesisBlock = () => {

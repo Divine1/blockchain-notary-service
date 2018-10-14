@@ -12,7 +12,32 @@ app.use(bodyParser.urlencoded({ extended: false }));
 
 const PORT = 8000;
 const ERROR = "ERROR";
+const ERROR_ADDRESS_NOT_EXISTS = "ADDRESS NOT EXISTS";
+const ERROR_VALIDATION_WINDOW_EXPIRED = "ERROR VALIDATION WINDOWEXPIRED";
+
 let maintainState=[];
+
+app.get("/insert",(req,res)=>{
+    console.log("/insert")
+    res.send({})
+})
+
+app.get("/get/:address",(req,res)=>{
+    console.log("/get")
+    const blockchain = new simplechain.Blockchain();
+    blockchain.getAddress(req.params.address).then(data=>{
+        console.log("Data ",data.error)
+    });
+    res.send({})
+})
+
+app.get("/del/:address",(req,res)=>{
+    console.log("/del")
+    const blockchain = new simplechain.Blockchain();
+    blockchain.deleteAddress(req.params.address).then();
+    res.send({})
+})
+
 
 app.get("/block/:blockheight", (req,res)=>{
     var blockheight = req.params.blockheight;
@@ -115,22 +140,87 @@ app.post("/block",(req,res)=>{
     }
 });
 
+var getUserDataFromAddress = function(address){
+    console.log("in getUserDataFromAddress() address ",address)
+    let userData = maintainState.filter((value,key)=>(value.address == address));
+
+    if(userData.length > 0){
+        console.log("userData[0] ",userData[0])
+        return userData[0];
+    }
+    else{
+        console.log(ERROR_ADDRESS_NOT_EXISTS)
+        return ERROR_ADDRESS_NOT_EXISTS;
+    }
+} 
+
+var getValidationWindowTime = function(requestTimeStamp){
+    console.log("in getValidationWindowTime() requestTimeStamp ",requestTimeStamp)
+    const currentRequestTimeStamp = Date.now();
+    let remainingSeconds = (currentRequestTimeStamp - requestTimeStamp)/1000;
+    let calValidationWindow = 300 - Math.round(remainingSeconds);
+    console.log("calValidationWindow ",calValidationWindow);
+
+    if(calValidationWindow >=0){
+        console.log("calValidationWindow ",calValidationWindow);
+        return calValidationWindow;
+    }
+    else{
+        console.log("ERROR_VALIDATION_WINDOW_EXPIRED ",ERROR_VALIDATION_WINDOW_EXPIRED );
+        return ERROR_VALIDATION_WINDOW_EXPIRED;
+    }
+};
+
 // http://localhost:8000/requestValidation
 app.post("/requestValidation",(req,res)=>{
-    console.log("in /requestValidation post method");
+    console.log("in /requestValidation post method address ",req.body);
     const address = req.body.address;
-    const currentRequestTimeStamp = Date.now();
-    const starRegistry = "starRegistry";
-    const message = address+":"+currentRequestTimeStamp+":"+starRegistry;
-    const validationWindow = 300;
-    const dataResponse = {
-        address,"requestTimeStamp" : currentRequestTimeStamp,message,validationWindow
-    };
-    console.log("before maintainState ",maintainState);
-    maintainState.push(dataResponse);
-    console.log("after maintainState ",maintainState);
-    console.log("dataResponse ",dataResponse)
-    res.send(dataResponse)
+    const blockchain = new simplechain.Blockchain();
+    if(address == ""){
+        res.send({"error" :"enter address in request body"})
+    }
+    else{
+        //var userData = getUserDataFromAddress(address);
+        blockchain.getAddress(address).then((responseData)=>{
+            var userData = responseData;
+
+            if(userData.error == ERROR_ADDRESS_NOT_EXISTS){
+                console.log(ERROR_ADDRESS_NOT_EXISTS);
+                const currentRequestTimeStamp = Date.now();
+                const starRegistry = "starRegistry";
+                const message = address+":"+currentRequestTimeStamp+":"+starRegistry;
+                const validationWindow = 300;
+                const dataResponse = {
+                    address,"requestTimeStamp" : currentRequestTimeStamp,message,validationWindow
+                };
+                //maintainState.push(dataResponse);
+                blockchain.insertAddress(dataResponse).then();
+                console.log("dataResponse ",dataResponse)
+                res.send(dataResponse)
+            }
+            else{
+                userData = userData.response;
+                var calValidationWindow = getValidationWindowTime(userData.requestTimeStamp);
+                if(calValidationWindow == ERROR_VALIDATION_WINDOW_EXPIRED){
+                    //maintainState = maintainState.filter((value,key)=>(value.address != address));
+                    blockchain.deleteAddress(address).then();
+                    res.send({"error" : ERROR_VALIDATION_WINDOW_EXPIRED});
+                }
+                else{
+                    const dataResponse = {
+                        address,
+                        "requestTimeStamp" : userData.requestTimeStamp,
+                        "message" : userData.message,
+                        "validationWindow" : calValidationWindow
+                    };
+                    res.send(dataResponse)
+                }
+            }
+            
+        })
+
+        
+    }
 })
 
 //http://localhost:8000/message-signature/validate
@@ -139,41 +229,47 @@ app.post("/message-signature/validate",(req,res)=>{
 
     let address = req.body.address;
     const signature = req.body.signature;
-    const currentRequestTimeStamp = Date.now();
+    const blockchain = new simplechain.Blockchain();
     console.log("req.body ",req.body)
 
-    let userData = maintainState.filter((value,key)=>(value.address == address));
-  console.log("userData ",userData);
-  userData = userData[0];
-    let message = userData.message;
-    console.log(bitcoinMessage.verify(userData.message, address, signature));
-
-    if(bitcoinMessage.verify(userData.message, address, signature))
-    {
-        userData = userData[0];
-        let remainingSeconds = (currentRequestTimeStamp - userData.requestTimeStamp)/1000;
-        let calValidationWindow = 300 - Math.round(remainingSeconds);
-        if(calValidationWindow >=0){
-            const dataResponse = {
-                registerStar : true,
-                status: {
-                    address : userData.address,
-                    requestTimeStamp : userData.requestTimeStamp,
-                    message : userData.message,
-                    validationWindow : calValidationWindow,
-                    messageSignature : "valid"
-                }
-            };
-            res.send(dataResponse);
+    
+    blockchain.getAddress(address).then((responseData)=>{
+        var userData = responseData;
+        if(userData == ERROR_ADDRESS_NOT_EXISTS){
+            console.log(ERROR_ADDRESS_NOT_EXISTS);
+            res.send({"error" : ERROR_ADDRESS_NOT_EXISTS});
         }
         else{
-            res.send({"error" : "validationWindow expired","address" :address});
-            maintainState = maintainState.filter((value,key)=>(value.address != address));
+            userData = userData.response;
+            let message = userData.message;
+            //console.log(bitcoinMessage.verify(message, address, signature));
+            // if(!bitcoinMessage.verify(message, address, signature))
+            // {
+                var calValidationWindow = getValidationWindowTime(userData.requestTimeStamp);
+                if(calValidationWindow == ERROR_VALIDATION_WINDOW_EXPIRED){
+                    //maintainState = maintainState.filter((value,key)=>(value.address != address));
+                    blockchain.deleteAddress(address).then();
+                    res.send({"error" : ERROR_VALIDATION_WINDOW_EXPIRED});
+                }
+                else{
+                    const dataResponse = {
+                        registerStar : true,
+                        status: {
+                            address : userData.address,
+                            requestTimeStamp : userData.requestTimeStamp,
+                            message : userData.message,
+                            validationWindow : calValidationWindow,
+                            messageSignature : "valid"
+                        }
+                    };
+                    res.send(dataResponse);
+                }
+            // }
+            // else{
+            //     res.send({"error" : "invalid address/signature","address":address});
+            // }
         }
-    }
-    else{
-        res.send({"error" : "invalid address/signature","address":address});
-    }
+    })
 });
 
 
