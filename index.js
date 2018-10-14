@@ -73,86 +73,62 @@ app.get("/block/:blockheight", (req,res)=>{
 //http://localhost:8000/block
 app.post("/block",(req,res)=>{
     console.log("/block post invoked");
-    let body = req.body.body;
+    const blockchain = new simplechain.Blockchain();
     let address = req.body.address;
-    console.log("body ",body);
     let star = req.body.star;
     let dec = star.dec;
     let ra = star.ra;
     let story = star.story;
     let storyBuffer = Buffer.from(story, 'utf8').toString("hex");
-    let userData = maintainState.filter((value,key)=>(value.address == address));
-    
-    if(userData.length > 0 ){
-        userData = userData[0];
+    let requestTimeStamp = Date.now();
+    blockchain.getAddress(address).then((responseData)=>{
 
-    let dataResponse = {
-        hash : "",
-        height : 0,
-        body : {
-          address : userData.address,
-          star : {
-            ra : ra,
-            dec : dec,
-            story : storyBuffer
-          }
-        },
-        time : "",
-        previousBlockHash : ""
-      };
+        var userData = responseData;
 
-    if(body == null){
-        res.send({
-            "status" : ERROR,
-            "message" : "body is empty. Please send post request with body parameter"
-        })
-    }
-    else{
-        const block = new simplechain.Block()
-        const blockchain = new simplechain.Blockchain();
-        //block.body = body;
-
-        block.body = dataResponse.body;
-
-        blockchain.addBlock(block).then((data) =>{
-            console.log("data ",data)
-            dataResponse.hash = data.hash;
-            dataResponse.height = data.height; 
-            dataResponse.time = userData.requestTimeStamp;
-            dataResponse.previousBlockHash = data.previousBlockhash;
-            res.send(dataResponse);
-        }).catch((err) =>{
-            console.log("err ",err)
+        if(userData.error == ERROR_ADDRESS_NOT_EXISTS){
+            let dataResponse = {
+                hash : "",
+                height : 0,
+                body : {
+                    address : address,
+                    star : {
+                    ra : ra,
+                    dec : dec,
+                    story : storyBuffer
+                    }
+                },
+                time : "",
+                previousBlockHash : ""
+            };
+            const block = new simplechain.Block()
+            const blockchain = new simplechain.Blockchain();
+            block.body = dataResponse.body;
+            blockchain.addBlock(block).then((data) =>{
+                console.log("data ",data)
+                dataResponse.hash = data.hash;
+                dataResponse.height = data.height; 
+                dataResponse.time = requestTimeStamp;
+                dataResponse.previousBlockHash = data.previousBlockhash;
+                res.send(dataResponse);
+            }).catch((err) =>{
+                console.log("err ",err)
+                res.send({
+                    "status" : ERROR,
+                    "message" : err,
+                    "body" : body,
+                    "address" : address
+                })
+            });
+        }
+        else{
             res.send({
-                "status" : ERROR,
-                "message" : err,
-                "body" : body,
-                "address" : address
+                "error" : "ADDRESS ALREADY EXISTS"
             })
-        });
-    }
-    }
-    else{
-        res.send({
-            "status" : ERROR,
-            "body" : "users not found",
-        })
-    }
+        }
+        
+    })
 });
 
-var getUserDataFromAddress = function(address){
-    console.log("in getUserDataFromAddress() address ",address)
-    let userData = maintainState.filter((value,key)=>(value.address == address));
-
-    if(userData.length > 0){
-        console.log("userData[0] ",userData[0])
-        return userData[0];
-    }
-    else{
-        console.log(ERROR_ADDRESS_NOT_EXISTS)
-        return ERROR_ADDRESS_NOT_EXISTS;
-    }
-} 
 
 var getValidationWindowTime = function(requestTimeStamp){
     console.log("in getValidationWindowTime() requestTimeStamp ",requestTimeStamp)
@@ -242,12 +218,11 @@ app.post("/message-signature/validate",(req,res)=>{
         else{
             userData = userData.response;
             let message = userData.message;
-            //console.log(bitcoinMessage.verify(message, address, signature));
-            // if(!bitcoinMessage.verify(message, address, signature))
-            // {
+            console.log(bitcoinMessage.verify(message, address, signature));
+            if(bitcoinMessage.verify(message, address, signature))
+             {
                 var calValidationWindow = getValidationWindowTime(userData.requestTimeStamp);
                 if(calValidationWindow == ERROR_VALIDATION_WINDOW_EXPIRED){
-                    //maintainState = maintainState.filter((value,key)=>(value.address != address));
                     blockchain.deleteAddress(address).then();
                     res.send({"error" : ERROR_VALIDATION_WINDOW_EXPIRED});
                 }
@@ -264,10 +239,10 @@ app.post("/message-signature/validate",(req,res)=>{
                     };
                     res.send(dataResponse);
                 }
-            // }
-            // else{
-            //     res.send({"error" : "invalid address/signature","address":address});
-            // }
+             }
+             else{
+                 res.send({"error" : "invalid address/signature","address":address});
+             }
         }
     })
 });

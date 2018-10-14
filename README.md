@@ -31,7 +31,6 @@ URL configured in this Project : `http://localhost:9000`
         - content-type : application/json
         - Request body : 
             {
-                "body" : "sample data",
                 "address": "142BDCeSGbXjWKaAnYXbMpZ6sbrSAo3DpZ",
                 "star": {
                     "dec": "-26° 29'  24.9",
