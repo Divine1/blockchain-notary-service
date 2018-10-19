@@ -13,7 +13,6 @@ const addLevelDBData =  (key,value) =>{
   })
 };
 
-
 const insertAddress =(address,addressObject)=>{
     console.log("in levelSandbox insertAddress addressObject ",addressObject)
     return new Promise(function(resolve,reject){
@@ -114,6 +113,7 @@ const getBlockChainLength = ()=>{
         });
     });
 };
+
 var printAllBlocks =  ()=>{
     return new Promise(function(resolve,reject){
         console.log("in printAllBlocks()")

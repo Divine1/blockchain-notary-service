@@ -15,29 +15,6 @@ const ERROR = "ERROR";
 const ERROR_ADDRESS_NOT_EXISTS = "ADDRESS NOT EXISTS";
 const ERROR_VALIDATION_WINDOW_EXPIRED = "ERROR VALIDATION WINDOWEXPIRED";
 
-let maintainState=[];
-
-app.get("/insert",(req,res)=>{
-    console.log("/insert")
-    res.send({})
-})
-
-app.get("/get/:address",(req,res)=>{
-    console.log("/get")
-    const blockchain = new simplechain.Blockchain();
-    blockchain.getAddress(req.params.address).then(data=>{
-        console.log("Data ",data.error)
-    });
-    res.send({})
-})
-
-app.get("/del/:address",(req,res)=>{
-    console.log("/del")
-    const blockchain = new simplechain.Blockchain();
-    blockchain.deleteAddress(req.params.address).then();
-    res.send({})
-})
-
 
 app.get("/block/:blockheight", (req,res)=>{
     var blockheight = req.params.blockheight;
@@ -73,7 +50,7 @@ app.get("/block/:blockheight", (req,res)=>{
 //http://localhost:8000/block
 app.post("/block",(req,res)=>{
     console.log("/block post invoked");
-    const blockchain = new simplechain.Blockchain();
+
     let address = req.body.address;
     let star = req.body.star;
     let dec = star.dec;
@@ -81,54 +58,42 @@ app.post("/block",(req,res)=>{
     let story = star.story;
     let storyBuffer = Buffer.from(story, 'utf8').toString("hex");
     let requestTimeStamp = Date.now();
-    blockchain.getAddress(address).then((responseData)=>{
+    let dataResponse = {
+        hash : "",
+        height : 0,
+        body : {
+            address : address,
+            star : {
+            ra : ra,
+            dec : dec,
+            story : storyBuffer
+            }
+        },
+        time : "",
+        previousBlockHash : ""
+    };
 
-        var userData = responseData;
+    const block = new simplechain.Block()
+    const blockchain = new simplechain.Blockchain();
+    block.body = dataResponse.body;
+    blockchain.addBlock(block).then((data) =>{
+        console.log("data ",data)
+        dataResponse.hash = data.hash;
+        dataResponse.height = data.height; 
+        dataResponse.time = requestTimeStamp;
+        dataResponse.previousBlockHash = data.previousBlockhash;
+        res.send(dataResponse);
+    }).catch((err) =>{
+        console.log("err ",err)
+        res.send({
+            "status" : ERROR,
+            "message" : err,
+            "body" : body,
+            "address" : address
+        })
+    });
 
-        if(userData.error == ERROR_ADDRESS_NOT_EXISTS){
-            let dataResponse = {
-                hash : "",
-                height : 0,
-                body : {
-                    address : address,
-                    star : {
-                    ra : ra,
-                    dec : dec,
-                    story : storyBuffer
-                    }
-                },
-                time : "",
-                previousBlockHash : ""
-            };
-            const block = new simplechain.Block()
-            const blockchain = new simplechain.Blockchain();
-            block.body = dataResponse.body;
-            blockchain.addBlock(block).then((data) =>{
-                console.log("data ",data)
-                dataResponse.hash = data.hash;
-                dataResponse.height = data.height; 
-                dataResponse.time = requestTimeStamp;
-                dataResponse.previousBlockHash = data.previousBlockhash;
-                res.send(dataResponse);
-            }).catch((err) =>{
-                console.log("err ",err)
-                res.send({
-                    "status" : ERROR,
-                    "message" : err,
-                    "body" : body,
-                    "address" : address
-                })
-            });
-        }
-        else{
-            res.send({
-                "error" : "ADDRESS ALREADY EXISTS"
-            })
-        }
-        
-    })
 });
-
 
 var getValidationWindowTime = function(requestTimeStamp){
     console.log("in getValidationWindowTime() requestTimeStamp ",requestTimeStamp)
@@ -191,17 +156,14 @@ app.post("/requestValidation",(req,res)=>{
                     };
                     res.send(dataResponse)
                 }
-            }
-            
-        })
-
-        
+            }  
+        }) 
     }
 })
 
 //http://localhost:8000/message-signature/validate
 app.post("/message-signature/validate",(req,res)=>{
-    console.log("ikkkn /message-signature/validate post method");
+    console.log("in /message-signature/validate post method");
 
     let address = req.body.address;
     const signature = req.body.signature;
