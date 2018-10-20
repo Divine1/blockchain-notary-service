@@ -10,6 +10,13 @@ const bitcoinMessage = require('bitcoinjs-message');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
+const blockdataUsageStatus = {
+    validated : "validated",
+    notvalidated : "notvalidated",
+    used : "used",
+    notused : "notused"
+};
+
 const PORT = 8000;
 const ERROR = "ERROR";
 const ERROR_ADDRESS_NOT_EXISTS = "ADDRESS NOT EXISTS";
@@ -52,18 +59,36 @@ app.get("/block/:blockheight", (req,res)=>{
     }
 })
 
+var getBinarySize = (data) => {
+    return Buffer.byteLength(data, 'utf8');
+};
+
 var validateStarObject = (body) =>{
     if(body.hasOwnProperty("star")){
         if(body.star.hasOwnProperty("dec") && 
         body.star.hasOwnProperty("ra") && 
         body.star.hasOwnProperty("story")){
-            if(body.star.dec.length >2 && body.star.ra.length > 2 && body.star.story.length > 2){
+            if(body.star.dec.length > 2 && 
+                body.star.ra.length > 2 && 
+                (getBinarySize(body.star.story) > 2 && getBinarySize(body.star.story) <= 500)){
                 return true;
             }
         }
     }
     return false;
-}
+};
+
+var getStoryData = (data)=>{
+    const story = data;
+    const storyHex = Buffer.from(story, 'utf8').toString("hex");
+    const storyBuffer = new Buffer(storyHex, 'hex');
+    const storyAscii = storyBuffer.toString("utf8");
+    return {
+        story : storyHex,
+        storyDecoded : storyAscii
+    }
+};
+
 //http://localhost:8000/block
 app.post("/block",(req,res)=>{
     console.log("/block post invoked");
@@ -76,7 +101,7 @@ app.post("/block",(req,res)=>{
     let dec = star.dec;
     let ra = star.ra;
     let story = star.story;
-    let storyBuffer = Buffer.from(story, 'utf8').toString("hex");
+    let storyData = getStoryData(story);
     let requestTimeStamp = Date.now();
     let dataResponse = {
         hash : "",
@@ -86,7 +111,8 @@ app.post("/block",(req,res)=>{
             star : {
             ra : ra,
             dec : dec,
-            story : storyBuffer
+            story : storyData.story,
+            storyDecoded : storyData.storyDecoded
             }
         },
         time : "",
@@ -95,34 +121,69 @@ app.post("/block",(req,res)=>{
     const blockchain = new simplechain.Blockchain();
     blockchain.getAddress(address).then((responseData)=>{
         console.log("77 ");
-        console.log("responseData ",responseData.response.verify)
-            if(responseData.response.verify){
-                console.log("in 80")
-                const block = new simplechain.Block()
-                const blockchain = new simplechain.Blockchain();
-                block.body = dataResponse.body;
-                blockchain.addBlock(block).then((data) =>{
-                    console.log("data ",data)
-                    dataResponse.hash = data.hash;
-                    dataResponse.height = data.height; 
-                    dataResponse.time = requestTimeStamp;
-                    dataResponse.previousBlockHash = data.previousBlockhash;
-                    res.send(dataResponse);
-                }).catch((err) =>{
-                    console.log("err ",err)
+        console.log("responseData ",responseData.response)
+
+            if(responseData.response.blockdataUsageStatus === blockdataUsageStatus.validated){
+                if(responseData.response.verify){
+                    console.log("in 80")
+                    const block = new simplechain.Block()
+                    const blockchain = new simplechain.Blockchain();
+                    block.body = dataResponse.body;
+                    blockchain.addBlock(block).then((data) =>{
+                        console.log("data ",data)
+                        dataResponse.hash = data.hash;
+                        dataResponse.height = data.height; 
+                        dataResponse.time = requestTimeStamp;
+                        dataResponse.previousBlockHash = data.previousBlockhash;
+
+                        blockchain.deleteAddress(address).then(()=>{
+                            responseData.response.verify=true;
+                            responseData.response.blockdataUsageStatus = blockdataUsageStatus.used;
+                            console.log("deleteAddress success ", responseData)
+                            blockchain.insertAddress(responseData.response).then(()=>{
+                                //console.log("deleteAddress success ", responseData)
+                                res.send(dataResponse);
+                            }).catch((err)=>{
+                                res.send({"errorEndpoint" : "in /block endpoint",
+                                "error" : "insert address : "+JSON.stringify(err),
+                                "address":address}); 
+                            });;
+                        }).catch((err)=>{
+                            res.send({"errorEndpoint" : "in /block endpoint",
+                            "error" : "delete address : "+JSON.stringify(err),
+                            "address":address}); 
+                        });
+                        
+                    }).catch((err) =>{
+                        console.log("err ",err)
+                        res.send({
+                            "error" : ERROR,
+                            "message" : err,
+                            "body" : body,
+                            "address" : address
+                        })
+                    });
+                }
+                else{
                     res.send({
-                        "error" : ERROR,
-                        "message" : err,
-                        "body" : body,
+                        "error" : "your message is not verified. kindly verify it",
                         "address" : address
                     })
-                });
+                }
             }
             else{
-                res.send({
-                    "error" : "your message is not verified. kindly verify it",
-                    "address" : address
-                })
+                if(responseData.response.blockdataUsageStatus === blockdataUsageStatus.notvalidated){
+                    res.send({
+                        "error" : "your message is not verified. kindly verify it",
+                        "address" : address
+                    })
+                }
+                else{
+                    res.send({
+                        "error" : "your have already used the signature. kindly create use a new token",
+                        "address" : address
+                    })
+                }
             }
         }).catch((err)=>{
             res.send({
@@ -179,7 +240,9 @@ app.post("/requestValidation",(req,res)=>{
                 const validationWindow = 300;
                 const dataResponse = {
                     address,"requestTimeStamp" : currentRequestTimeStamp,message,validationWindow,
-                    verify: false
+                    verify: false,
+                    blockdataUsageStatus : blockdataUsageStatus.notvalidated
+
                 };
                 //maintainState.push(dataResponse);
                 blockchain.insertAddress(dataResponse).then();
@@ -248,6 +311,7 @@ app.post("/message-signature/validate",(req,res)=>{
                     };
                     blockchain.deleteAddress(address).then(()=>{
                         responseData.response.verify=true;
+                        responseData.response.blockdataUsageStatus = blockdataUsageStatus.validated;
                         console.log("deleteAddress success ", responseData)
                         blockchain.insertAddress(responseData.response).then(()=>{
                             //console.log("deleteAddress success ", responseData)
