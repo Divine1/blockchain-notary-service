@@ -33,7 +33,11 @@ class Blockchain{
         newBlock.height = chainLength;
         newBlock.time = new Date().getTime().toString().slice(0,-3);
         if(chainLength >0){
+          console.log("36")
              let previousBlock = await db.getLevelDBData(chainLength - 1);
+             //let previousBlock = await db.getBlockUsingHeight(chainLength - 1);
+             
+             console.log("38")
              newBlock.previousBlockhash = previousBlock.hash;
         }
         newBlock.hash = SHA256(JSON.stringify(newBlock)).toString();

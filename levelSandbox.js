@@ -68,6 +68,7 @@ const deleteAddress = (address) =>{
 
 // Get data from levelDB with key
  const getLevelDBData = (key)=>{
+     console.log("in getLevelDBData()")
     return new Promise(function(resolve,reject){
         db.get(key, function(err, value) {
             if (err) {
@@ -103,7 +104,11 @@ const getBlockChainLength = ()=>{
         var length = 0;
         db.createReadStream({ keys: true, values: true }).on('data', function(data) {
            // console.log("data ",data);
+           let dataJson = JSON.parse(data.value);
+           if(dataJson.hasOwnProperty("previousBlockhash")){
             length++;
+           }
+            
         }).on('error', function(err) {
             //console.log('Unable to read data stream!', err)
             reject(err)
@@ -119,10 +124,10 @@ var printAllBlocks =  ()=>{
         console.log("in printAllBlocks()")
         let allBlockData = null;
         db.createReadStream({ keys: true, values: true }).on('data', function(data) {
-            //onsole.log("data ",data);
+            console.log("data ",data);
             //allBlockData = data;
             //console.log("70",allBlockData);
-            data.value.body.address
+            //data.value.body.address
         }).on('error', function(err) {
             //console.log('Unable to read data stream!', err)
             reject(err)
@@ -187,7 +192,8 @@ var getBlockUsingHeight = (blockheight)=>{
             //console.log('Unable to read data stream!', err)
             reject(err)
         }).on('close', function() {
-            //console.log("exactBlock ",exactBlock)
+            console.log("exactBlock ",exactBlock)
+
             resolve(exactBlock)
         });
     });

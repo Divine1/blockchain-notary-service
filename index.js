@@ -15,6 +15,11 @@ const ERROR = "ERROR";
 const ERROR_ADDRESS_NOT_EXISTS = "ADDRESS NOT EXISTS";
 const ERROR_VALIDATION_WINDOW_EXPIRED = "ERROR VALIDATION WINDOWEXPIRED";
 
+app.get("/print",(req,res)=>{
+    console.log("in /print")
+    db.printAllBlocks().then();
+    res.send({"data":"see logs"})
+})
 
 app.get("/block/:blockheight", (req,res)=>{
     var blockheight = req.params.blockheight;
@@ -47,11 +52,26 @@ app.get("/block/:blockheight", (req,res)=>{
     }
 })
 
+var validateStarObject = (body) =>{
+    if(body.hasOwnProperty("star")){
+        if(body.star.hasOwnProperty("dec") && 
+        body.star.hasOwnProperty("ra") && 
+        body.star.hasOwnProperty("story")){
+            if(body.star.dec.length >10 && body.star.ra.length > 10 && body.star.story.length > 6){
+                return true;
+            }
+        }
+    }
+    return false;
+}
 //http://localhost:8000/block
 app.post("/block",(req,res)=>{
     console.log("/block post invoked");
 
     let address = req.body.address;
+
+    if(validateStarObject(req.body)){
+
     let star = req.body.star;
     let dec = star.dec;
     let ra = star.ra;
@@ -72,26 +92,52 @@ app.post("/block",(req,res)=>{
         time : "",
         previousBlockHash : ""
     };
-
-    const block = new simplechain.Block()
     const blockchain = new simplechain.Blockchain();
-    block.body = dataResponse.body;
-    blockchain.addBlock(block).then((data) =>{
-        console.log("data ",data)
-        dataResponse.hash = data.hash;
-        dataResponse.height = data.height; 
-        dataResponse.time = requestTimeStamp;
-        dataResponse.previousBlockHash = data.previousBlockhash;
-        res.send(dataResponse);
-    }).catch((err) =>{
-        console.log("err ",err)
+    blockchain.getAddress(address).then((responseData)=>{
+        console.log("77 ");
+        console.log("responseData ",responseData.response.verify)
+            if(responseData.response.verify){
+                console.log("in 80")
+                const block = new simplechain.Block()
+                const blockchain = new simplechain.Blockchain();
+                block.body = dataResponse.body;
+                blockchain.addBlock(block).then((data) =>{
+                    console.log("data ",data)
+                    dataResponse.hash = data.hash;
+                    dataResponse.height = data.height; 
+                    dataResponse.time = requestTimeStamp;
+                    dataResponse.previousBlockHash = data.previousBlockhash;
+                    res.send(dataResponse);
+                }).catch((err) =>{
+                    console.log("err ",err)
+                    res.send({
+                        "error" : ERROR,
+                        "message" : err,
+                        "body" : body,
+                        "address" : address
+                    })
+                });
+            }
+            else{
+                res.send({
+                    "error" : "your message is not verified. kindly verify it",
+                    "address" : address
+                })
+            }
+        }).catch((err)=>{
+            res.send({
+                "error" : "Kindly register and validate your data before initiating for storage",
+                "address" : address
+            })
+        })
+    }
+    else{
         res.send({
-            "status" : ERROR,
-            "message" : err,
-            "body" : body,
+            "error" : "request has invalid input format for star object",
             "address" : address
         })
-    });
+    }
+    
 
 });
 
@@ -132,7 +178,8 @@ app.post("/requestValidation",(req,res)=>{
                 const message = address+":"+currentRequestTimeStamp+":"+starRegistry;
                 const validationWindow = 300;
                 const dataResponse = {
-                    address,"requestTimeStamp" : currentRequestTimeStamp,message,validationWindow
+                    address,"requestTimeStamp" : currentRequestTimeStamp,message,validationWindow,
+                    verify: false
                 };
                 //maintainState.push(dataResponse);
                 blockchain.insertAddress(dataResponse).then();
@@ -199,7 +246,22 @@ app.post("/message-signature/validate",(req,res)=>{
                             messageSignature : "valid"
                         }
                     };
-                    res.send(dataResponse);
+                    blockchain.deleteAddress(address).then(()=>{
+                        responseData.response.verify=true;
+                        console.log("deleteAddress success ", responseData)
+                        blockchain.insertAddress(responseData.response).then(()=>{
+                            //console.log("deleteAddress success ", responseData)
+                            res.send(dataResponse);
+                        }).catch((err)=>{
+                            res.send({"errorEndpoint" : "in /message-signature/validate endpoint",
+                            "error" : "insert address : "+JSON.stringify(err),
+                            "address":address}); 
+                        });;
+                    }).catch((err)=>{
+                        res.send({"errorEndpoint" : "in /message-signature/validate endpoint",
+                        "error" : "delete address : "+JSON.stringify(err),
+                        "address":address}); 
+                    });
                 }
              }
              else{
@@ -208,7 +270,6 @@ app.post("/message-signature/validate",(req,res)=>{
         }
     })
 });
-
 
 //http://localhost:8000/stars/address:142BDCeSGbXjWKaAnYXbMpZ6sbrSAo3DpZ
 app.get("/stars/address*",(req,res)=>{
@@ -235,7 +296,6 @@ app.get("/stars/hash*",(req,res)=>{
         console.log("err ",err)
     })
 })
-
 
 app.use((req,res) => {
     res.send({
