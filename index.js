@@ -57,7 +57,7 @@ var validateStarObject = (body) =>{
         if(body.star.hasOwnProperty("dec") && 
         body.star.hasOwnProperty("ra") && 
         body.star.hasOwnProperty("story")){
-            if(body.star.dec.length >10 && body.star.ra.length > 10 && body.star.story.length > 6){
+            if(body.star.dec.length >2 && body.star.ra.length > 2 && body.star.story.length > 2){
                 return true;
             }
         }
