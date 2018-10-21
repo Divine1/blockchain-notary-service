@@ -21,7 +21,7 @@ const insertAddress =(address,addressObject)=>{
         db.put(address, addressObject, function (err) {
             if (err){ 
                 console.log('Ooops!', err);
-                resolve({"error" : "insertAddress error exists", "message" : err})
+                reject({"error" : "insertAddress error exists", "message" : err})
             }
             else{
                 resolve({"error" : ""})
@@ -51,6 +51,65 @@ const getAddress = (address) =>{
         })
     })
 }
+
+
+const insertSign =(signJson)=>{
+    console.log("in levelSandbox insertSign signJson ",signJson)
+    return new Promise(function(resolve,reject){
+        db.put(signJson.signature, JSON.stringify(signJson), function (err) {
+            if (err){ 
+                console.log('Ooops!', err);
+                reject({"error" : "insertAddress error exists", "message" : err})
+            }
+            else{
+                resolve({"error" : ""})
+            }
+            console.log("insertSign inserted")
+        })
+    })
+};
+const getSign = (signature) => {
+    console.log("in getSign- sign ",signature);
+    return new Promise(function(resolve,reject){
+        db.get(signature, function (err, value) {
+            if (err) {
+                console.log('Ooops!', err) // likely the key was not found
+                reject("signature not exists: "+err);
+            }
+            else{
+                
+                console.log('signature = ' , JSON.parse(value))
+                resolve(JSON.parse(value));
+            }
+        })
+    })
+};
+
+const getAllSign = (address) => {
+    console.log("in getAllSign- sign address " ,address);
+    return new Promise(function(resolve,reject){
+        
+        let allBlockData = [];
+        db.createReadStream({ keys: true, values: true }).on('data', function(data) {
+            
+            let dataJSON = JSON.parse(data.value);
+            console.log("dataJSON ",dataJSON);
+
+            if(dataJSON.hasOwnProperty("signature")){
+                allBlockData.push(dataJSON); 
+            }
+        }).on('error', function(err) {
+            //console.log('Unable to read data stream!', err)
+            reject(err)
+        }).on('close', function() {
+            console.log("105 allBlockData ",allBlockData)
+            resolve(allBlockData);
+        });
+    });
+};
+
+
+
 
 const deleteAddress = (address) =>{
     console.log("in -levelSandbox deleteAddress address ",address)
@@ -106,7 +165,7 @@ const getBlockChainLength = ()=>{
     return new Promise(function(resolve,reject){
         var length = 0;
         db.createReadStream({ keys: true, values: true }).on('data', function(data) {
-           // console.log("data ",data);
+            console.log("data ",data);
            let dataJson = JSON.parse(data.value);
            if(dataJson.hasOwnProperty("previousBlockhash")){
             length++;
@@ -237,4 +296,4 @@ var getBlockUsingHeight = (blockheight)=>{
 
 module.exports = {addLevelDBData,getLevelDBData,addDataToLevelDB,getBlockChainLength,getBlockUsingHeight,printAllBlocks,
     getBlocksWithAddress,getBlocksWithHash,
-    insertAddress,getAddress,deleteAddress};
+    insertAddress,getAddress,deleteAddress,getSign,insertSign,getAllSign};

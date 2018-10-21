@@ -45,15 +45,6 @@ class Blockchain{
         console.log("newBlock ",newBlock)
         db.addLevelDBData(chainLength,JSON.stringify(newBlock))
 
-
-        if(typeof newBlock.body == "string"){
-
-        }
-        else{
-          let storyASCII = getStoryASCIIData(newBlock.body.star.story);
-          newBlock.body.star.storyDecoded = storyASCII;
-        }
-
         return newBlock;
     }
     
