@@ -6,6 +6,8 @@ let level = require('level');
 let chainDB = './chaindata';
 let db = level(chainDB);
 
+const {getStoryASCIIData} = require("./utility");
+
 // Add data to levelDB with key/value pair
 const addLevelDBData =  (key,value) =>{
   db.put(key, value, function(err) {
@@ -145,6 +147,14 @@ var getBlocksWithAddress =  (address)=>{
             let dataJson = JSON.parse(data.value);
             if(dataJson.hasOwnProperty("body") && dataJson.body.hasOwnProperty("address")){
                 if(address == dataJson.body.address){
+                    if(typeof dataJson.body == "string"){
+
+                    }
+                    else{
+                        let story = dataJson.body.star.story;
+                        let storyASCII = getStoryASCIIData(story);
+                        dataJson.body.star.storyDecoded = storyASCII;
+                    }
                     allBlockData.push(dataJson);
                 }
             }
@@ -164,6 +174,14 @@ var getBlocksWithHash =  (hash)=>{
             let dataJson = JSON.parse(data.value);
             if(dataJson.hasOwnProperty("hash")){
                 if(hash == dataJson.hash){
+                    if(typeof dataJson.body == "string"){
+
+                    }
+                    else{
+                        let story = dataJson.body.star.story;
+                        let storyASCII = getStoryASCIIData(story);
+                        dataJson.body.star.storyDecoded = storyASCII;
+                    }
                     allBlockData = dataJson;
                 }
             }
@@ -174,7 +192,6 @@ var getBlocksWithHash =  (hash)=>{
         });
     });
 };
-//printAllBlocks().then(()=>console.log(""))
 
 //input blockheight
 var getBlockUsingHeight = (blockheight)=>{
@@ -184,7 +201,25 @@ var getBlockUsingHeight = (blockheight)=>{
         db.createReadStream({ keys: true, values: true }).on('data', function(data) {
            // console.log("data ",data);
             var myvalue = JSON.parse(data.value);
+            console.log("194-myvalue ", myvalue);
+
+            // if(myvalue.body.hasOwnProperty("story")){
+            //     let story = myvalue.body.story;
+            //     let storyASCII = getStoryASCIIData(story);
+            //     myvalue.body.storyDecoded = storyASCII;
+            // }
+           
+
             if(blockheight == myvalue.height){
+                console.log("204-myvalue ", myvalue);
+                if(typeof myvalue.body == "string"){
+
+                }
+                else{
+                    let story = myvalue.body.star.story;
+                    let storyASCII = getStoryASCIIData(story);
+                    myvalue.body.star.storyDecoded = storyASCII;
+                }
                 exactBlock = myvalue;
                 return;
             }

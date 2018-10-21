@@ -1,5 +1,6 @@
 const SHA256 = require("crypto-js/sha256")
 const db = require("./levelSandbox");
+const {getStoryASCIIData} = require("./utility");
 
 class Block{
   constructor(data){
@@ -43,11 +44,19 @@ class Blockchain{
         newBlock.hash = SHA256(JSON.stringify(newBlock)).toString();
         console.log("newBlock ",newBlock)
         db.addLevelDBData(chainLength,JSON.stringify(newBlock))
+
+
+        if(typeof newBlock.body == "string"){
+
+        }
+        else{
+          let storyASCII = getStoryASCIIData(newBlock.body.star.story);
+          newBlock.body.star.storyDecoded = storyASCII;
+        }
+
         return newBlock;
     }
     
-  
-
     // Get block height
     async getBlockHeight(){
       const chainLength = await db.getBlockChainLength();

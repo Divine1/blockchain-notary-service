@@ -7,87 +7,21 @@ const url = require('url');
 const bitcoin = require('bitcoinjs-lib');
 const bitcoinMessage = require('bitcoinjs-message');
 
+const {
+        COMMONCONSTANTS,
+        validateStarObject,
+        getStoryHexData,
+        getValidationWindowTime
+    } = require("./utility");
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-
-const blockdataUsageStatus = {
-    validated : "validated",
-    notvalidated : "notvalidated",
-    used : "used",
-    notused : "notused"
-};
-
-const PORT = 8000;
-const ERROR = "ERROR";
-const ERROR_ADDRESS_NOT_EXISTS = "ADDRESS NOT EXISTS";
-const ERROR_VALIDATION_WINDOW_EXPIRED = "ERROR VALIDATION WINDOWEXPIRED";
 
 app.get("/print",(req,res)=>{
     console.log("in /print")
     db.printAllBlocks().then();
     res.send({"data":"see logs"})
 })
-
-app.get("/block/:blockheight", (req,res)=>{
-    var blockheight = req.params.blockheight;
-    console.log("blockheight ",blockheight)
-    const blockchain = new simplechain.Blockchain();
-    if(blockheight ==null){
-        res.send({
-            "status" : ERROR,
-            "message" : "please send blockheight parameter in http get request"
-        })
-    }
-    else{
-        blockchain.getBlock(blockheight).then( data => {
-            if(data == null){
-                throw "block not found for given blockheight"
-            }
-            else{
-                console.log("then getBlock ",data)
-                res.send(data)
-            }
-        })
-        .catch((err)=>{
-            console.log("err ",  err.Error)
-            res.send({
-                "status" : ERROR,
-                "message" : err,
-                "blockheight" : blockheight
-            })
-        })
-    }
-})
-
-var getBinarySize = (data) => {
-    return Buffer.byteLength(data, 'utf8');
-};
-
-var validateStarObject = (body) =>{
-    if(body.hasOwnProperty("star")){
-        if(body.star.hasOwnProperty("dec") && 
-        body.star.hasOwnProperty("ra") && 
-        body.star.hasOwnProperty("story")){
-            if(body.star.dec.length > 2 && 
-                body.star.ra.length > 2 && 
-                (getBinarySize(body.star.story) > 2 && getBinarySize(body.star.story) <= 500)){
-                return true;
-            }
-        }
-    }
-    return false;
-};
-
-var getStoryData = (data)=>{
-    const story = data;
-    const storyHex = Buffer.from(story, 'utf8').toString("hex");
-    const storyBuffer = new Buffer(storyHex, 'hex');
-    const storyAscii = storyBuffer.toString("utf8");
-    return {
-        story : storyHex,
-        storyDecoded : storyAscii
-    }
-};
 
 //http://localhost:8000/block
 app.post("/block",(req,res)=>{
@@ -101,7 +35,7 @@ app.post("/block",(req,res)=>{
     let dec = star.dec;
     let ra = star.ra;
     let story = star.story;
-    let storyData = getStoryData(story);
+    let storyHex = getStoryHexData(story);
     let requestTimeStamp = Date.now();
     let dataResponse = {
         hash : "",
@@ -111,8 +45,7 @@ app.post("/block",(req,res)=>{
             star : {
             ra : ra,
             dec : dec,
-            story : storyData.story,
-            storyDecoded : storyData.storyDecoded
+            story : storyHex
             }
         },
         time : "",
@@ -123,7 +56,7 @@ app.post("/block",(req,res)=>{
         console.log("77 ");
         console.log("responseData ",responseData.response)
 
-            if(responseData.response.blockdataUsageStatus === blockdataUsageStatus.validated){
+            if(responseData.response.blockdataUsageStatus === COMMONCONSTANTS.VALIDATED){
                 if(responseData.response.verify){
                     console.log("in 80")
                     const block = new simplechain.Block()
@@ -138,7 +71,7 @@ app.post("/block",(req,res)=>{
 
                         blockchain.deleteAddress(address).then(()=>{
                             responseData.response.verify=true;
-                            responseData.response.blockdataUsageStatus = blockdataUsageStatus.used;
+                            responseData.response.blockdataUsageStatus = COMMONCONSTANTS.USED;
                             console.log("deleteAddress success ", responseData)
                             blockchain.insertAddress(responseData.response).then(()=>{
                                 //console.log("deleteAddress success ", responseData)
@@ -157,7 +90,7 @@ app.post("/block",(req,res)=>{
                     }).catch((err) =>{
                         console.log("err ",err)
                         res.send({
-                            "error" : ERROR,
+                            "error" : COMMONCONSTANTS.ERROR,
                             "message" : err,
                             "body" : body,
                             "address" : address
@@ -172,7 +105,7 @@ app.post("/block",(req,res)=>{
                 }
             }
             else{
-                if(responseData.response.blockdataUsageStatus === blockdataUsageStatus.notvalidated){
+                if(responseData.response.blockdataUsageStatus === COMMONCONSTANTS.NOTVALIDATED){
                     res.send({
                         "error" : "your message is not verified. kindly verify it",
                         "address" : address
@@ -202,23 +135,6 @@ app.post("/block",(req,res)=>{
 
 });
 
-var getValidationWindowTime = function(requestTimeStamp){
-    console.log("in getValidationWindowTime() requestTimeStamp ",requestTimeStamp)
-    const currentRequestTimeStamp = Date.now();
-    let remainingSeconds = (currentRequestTimeStamp - requestTimeStamp)/1000;
-    let calValidationWindow = 300 - Math.round(remainingSeconds);
-    console.log("calValidationWindow ",calValidationWindow);
-
-    if(calValidationWindow >=0){
-        console.log("calValidationWindow ",calValidationWindow);
-        return calValidationWindow;
-    }
-    else{
-        console.log("ERROR_VALIDATION_WINDOW_EXPIRED ",ERROR_VALIDATION_WINDOW_EXPIRED );
-        return ERROR_VALIDATION_WINDOW_EXPIRED;
-    }
-};
-
 // http://localhost:8000/requestValidation
 app.post("/requestValidation",(req,res)=>{
     console.log("in /requestValidation post method address ",req.body);
@@ -232,8 +148,8 @@ app.post("/requestValidation",(req,res)=>{
         blockchain.getAddress(address).then((responseData)=>{
             var userData = responseData;
 
-            if(userData.error == ERROR_ADDRESS_NOT_EXISTS){
-                console.log(ERROR_ADDRESS_NOT_EXISTS);
+            if(userData.error == COMMONCONSTANTS.ERROR_ADDRESS_NOT_EXISTS){
+                console.log(COMMONCONSTANTS.ERROR_ADDRESS_NOT_EXISTS);
                 const currentRequestTimeStamp = Date.now();
                 const starRegistry = "starRegistry";
                 const message = address+":"+currentRequestTimeStamp+":"+starRegistry;
@@ -241,7 +157,7 @@ app.post("/requestValidation",(req,res)=>{
                 const dataResponse = {
                     address,"requestTimeStamp" : currentRequestTimeStamp,message,validationWindow,
                     verify: false,
-                    blockdataUsageStatus : blockdataUsageStatus.notvalidated
+                    blockdataUsageStatus : COMMONCONSTANTS.NOTVALIDATED
 
                 };
                 //maintainState.push(dataResponse);
@@ -252,10 +168,10 @@ app.post("/requestValidation",(req,res)=>{
             else{
                 userData = userData.response;
                 var calValidationWindow = getValidationWindowTime(userData.requestTimeStamp);
-                if(calValidationWindow == ERROR_VALIDATION_WINDOW_EXPIRED){
+                if(calValidationWindow == COMMONCONSTANTS.ERROR_VALIDATION_WINDOW_EXPIRED){
                     //maintainState = maintainState.filter((value,key)=>(value.address != address));
                     blockchain.deleteAddress(address).then();
-                    res.send({"error" : ERROR_VALIDATION_WINDOW_EXPIRED});
+                    res.send({"error" : COMMONCONSTANTS.ERROR_VALIDATION_WINDOW_EXPIRED});
                 }
                 else{
                     const dataResponse = {
@@ -267,7 +183,14 @@ app.post("/requestValidation",(req,res)=>{
                     res.send(dataResponse)
                 }
             }  
-        }) 
+        }).catch((err)=>{
+            blockchain.deleteAddress(address).then(()=>{
+                res.send({
+                        "error" : JSON.stringify(err),
+                        message: "error during requestvalidation"
+                });
+            });
+        })
     }
 })
 
@@ -283,9 +206,9 @@ app.post("/message-signature/validate",(req,res)=>{
     
     blockchain.getAddress(address).then((responseData)=>{
         var userData = responseData;
-        if(userData == ERROR_ADDRESS_NOT_EXISTS){
-            console.log(ERROR_ADDRESS_NOT_EXISTS);
-            res.send({"error" : ERROR_ADDRESS_NOT_EXISTS});
+        if(userData == COMMONCONSTANTS.ERROR_ADDRESS_NOT_EXISTS){
+            console.log(COMMONCONSTANTS.ERROR_ADDRESS_NOT_EXISTS);
+            res.send({"error" : COMMONCONSTANTS.ERROR_ADDRESS_NOT_EXISTS});
         }
         else{
             userData = userData.response;
@@ -294,9 +217,9 @@ app.post("/message-signature/validate",(req,res)=>{
             if(bitcoinMessage.verify(message, address, signature))
              {
                 var calValidationWindow = getValidationWindowTime(userData.requestTimeStamp);
-                if(calValidationWindow == ERROR_VALIDATION_WINDOW_EXPIRED){
+                if(calValidationWindow == COMMONCONSTANTS.ERROR_VALIDATION_WINDOW_EXPIRED){
                     blockchain.deleteAddress(address).then();
-                    res.send({"error" : ERROR_VALIDATION_WINDOW_EXPIRED});
+                    res.send({"error" : COMMONCONSTANTS.ERROR_VALIDATION_WINDOW_EXPIRED});
                 }
                 else{
                     const dataResponse = {
@@ -311,7 +234,7 @@ app.post("/message-signature/validate",(req,res)=>{
                     };
                     blockchain.deleteAddress(address).then(()=>{
                         responseData.response.verify=true;
-                        responseData.response.blockdataUsageStatus = blockdataUsageStatus.validated;
+                        responseData.response.blockdataUsageStatus = COMMONCONSTANTS.VALIDATED;
                         console.log("deleteAddress success ", responseData)
                         blockchain.insertAddress(responseData.response).then(()=>{
                             //console.log("deleteAddress success ", responseData)
@@ -332,6 +255,13 @@ app.post("/message-signature/validate",(req,res)=>{
                  res.send({"error" : "invalid address/signature","address":address});
              }
         }
+    }).catch((err)=>{
+        blockchain.deleteAddress(address).then(()=>{
+            res.send({
+                    "error" : JSON.stringify(err),
+                    message: "error during /message-signature/validate"
+            });
+        });
     })
 });
 
@@ -361,13 +291,45 @@ app.get("/stars/hash*",(req,res)=>{
     })
 })
 
+//http://localhost:8000/block/2
+app.get("/block/:blockheight", (req,res)=>{
+    var blockheight = req.params.blockheight;
+    console.log("blockheight ",blockheight)
+    const blockchain = new simplechain.Blockchain();
+    if(blockheight ==null){
+        res.send({
+            "status" : COMMONCONSTANTS.ERROR,
+            "message" : "please send blockheight parameter in http get request"
+        })
+    }
+    else{
+        blockchain.getBlock(blockheight).then( data => {
+            if(data == null){
+                throw "block not found for given blockheight"
+            }
+            else{
+                console.log("then getBlock ",data)
+                res.send(data)
+            }
+        })
+        .catch((err)=>{
+            console.log("err ",  err.Error)
+            res.send({
+                "status" : COMMONCONSTANTS.ERROR,
+                "message" : err,
+                "blockheight" : blockheight
+            })
+        })
+    }
+})
+
 app.use((req,res) => {
     res.send({
-        "status" : ERROR,
+        "status" : COMMONCONSTANTS.ERROR,
         "message" : "invalid url. refer README.md for endpoint details"
     })
 });
 
-app.listen(PORT,()=>{
-    console.log("server started at port ",PORT);
+let server = app.listen(COMMONCONSTANTS.PORT,()=>{
+    console.log("server started at port ",server.address().port);
 })
