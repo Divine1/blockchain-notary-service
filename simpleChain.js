@@ -124,6 +124,10 @@ class Blockchain{
 
     async getAddress(address){
       const response = await db.getAddress(address);
+      // console.log("127 ")
+      // response.then((data) => console.log("then data ",date))
+      //   .catch((err)=>console.log("129 err ",err));
+
       return response;
     }
 

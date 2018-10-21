@@ -53,7 +53,7 @@ const getAddress = (address) =>{
 }
 
 const deleteAddress = (address) =>{
-    console.log("in levelSandbox deleteAddress address ",address)
+    console.log("in -levelSandbox deleteAddress address ",address)
     return new Promise(function(resolve,reject){
         db.del(address, function (err) {
             if (err){
@@ -61,6 +61,7 @@ const deleteAddress = (address) =>{
                 resolve({"error" : "deleteAddress error while deleting", "message" : err})
             }
             else{
+                console.log("in else 64")
                 resolve({"error" : ""});
             }
             

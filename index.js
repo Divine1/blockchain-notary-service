@@ -11,17 +11,105 @@ const {
         COMMONCONSTANTS,
         validateStarObject,
         getStoryHexData,
-        getValidationWindowTime
+        getValidationWindowTime,
+        updateAddressObject
     } = require("./utility");
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
+
+
+const updateSignatureObject = (signature,response,signatureStatus)=>{
+    console.log("in updateSignatureObject() start response.signatureDetails ",response.signatureDetails);
+    const signArray = response.signatureDetails.map((data,index)=>{
+        if(data.signature == signature){
+            data.blockdataUsageStatus = signatureStatus;
+        }
+        return data;
+    })
+    console.log("in updateSignatureObject() end signArray ",signArray)
+    return signArray;
+};
+
+const createSignatureObject = (signature,response,signatureStatus)=>{
+    console.log("in createSignatureObject() start")
+    let signArray = [];
+    let signJson = {};
+    signJson.signature = signature;
+    signJson.blockdataUsageStatus = signatureStatus;
+
+    if(response.hasOwnProperty("signatureDetails")){
+        signArray = response.signatureDetails;
+        signArray.push(signJson);
+        console.log("in if");
+    }
+    else{
+        signArray.push(signJson);
+        console.log("in else");
+    }
+    console.log("in createSignatureObject() end signArray ",signArray)
+    return signArray;
+};
+
+const verifySignatureExistence = (response,inputSignature) =>{
+    console.log("in verifySignatureExistence start response- ",response, " -inputSignature- ", inputSignature);
+    let signData = [];
+    if(response.hasOwnProperty("signatureDetails")){
+        const signatureDetails = response.signatureDetails;
+        console.log("signatureDetails ",signatureDetails);
+        signData = signatureDetails.filter((data,index)=>{
+            if(data.signature == inputSignature){
+                return true;
+            }
+        });
+    }
+    console.log("signData ",signData)
+    return signData;
+};
+
+const verifySignatureValidity = (response) =>{
+    console.log("in verifySignatureValidity start response- ",response);
+    let signData = [];
+    if(response.hasOwnProperty("signatureDetails")){
+        const signatureDetails = response.signatureDetails;
+        console.log("signatureDetails ",signatureDetails);
+        signData = signatureDetails.filter((data,index)=>{
+            //data.signature
+            //data.blockdataUsageStatus
+            if(data.blockdataUsageStatus == COMMONCONSTANTS.VALIDATED){
+                return true;
+            }
+        });
+    }
+    console.log("signData ",signData)
+    return signData;
+};
+
+
 app.get("/print",(req,res)=>{
     console.log("in /print")
-    db.printAllBlocks().then();
+    // db.printAllBlocks().then();
+    const address = "1EcPPsPNh74zzQaZTCcEGuCkpkQB9BjPgD";
+    const blockchain = new simplechain.Blockchain();
+    blockchain.getAddress(address).then((responseData)=>{
+        console.log("then in line:27 ");
+        console.log("responseData ",responseData)
+        //const signatureDetails = responseData.response.signatureDetails;
+        
+        //signature,blockdataUsageStatus:
+
+        // signatureDetails.filter((data,index)=>{
+        //     console.log("data- ",data," :index- ",index);
+        // })
+    }).catch((err)=>{
+        console.log("err ",err)
+    })
+
     res.send({"data":"see logs"})
 })
+
+
 
 //http://localhost:8000/block
 app.post("/block",(req,res)=>{
@@ -54,69 +142,66 @@ app.post("/block",(req,res)=>{
     const blockchain = new simplechain.Blockchain();
     blockchain.getAddress(address).then((responseData)=>{
         console.log("77 ");
-        console.log("responseData ",responseData.response)
+        console.log("responseData ",responseData.response);
 
-            if(responseData.response.blockdataUsageStatus === COMMONCONSTANTS.VALIDATED){
-                if(responseData.response.verify){
-                    console.log("in 80")
-                    const block = new simplechain.Block()
-                    const blockchain = new simplechain.Blockchain();
-                    block.body = dataResponse.body;
-                    blockchain.addBlock(block).then((data) =>{
-                        console.log("data ",data)
-                        dataResponse.hash = data.hash;
-                        dataResponse.height = data.height; 
-                        dataResponse.time = requestTimeStamp;
-                        dataResponse.previousBlockHash = data.previousBlockhash;
+        const signData = verifySignatureValidity(responseData.response);
 
-                        blockchain.deleteAddress(address).then(()=>{
-                            responseData.response.verify=true;
-                            responseData.response.blockdataUsageStatus = COMMONCONSTANTS.USED;
-                            console.log("deleteAddress success ", responseData)
-                            blockchain.insertAddress(responseData.response).then(()=>{
-                                //console.log("deleteAddress success ", responseData)
-                                res.send(dataResponse);
-                            }).catch((err)=>{
-                                res.send({"errorEndpoint" : "in /block endpoint",
-                                "error" : "insert address : "+JSON.stringify(err),
-                                "address":address}); 
-                            });;
+            //if(responseData.response.blockdataUsageStatus === COMMONCONSTANTS.VALIDATED){
+            if(signData.length > 0){
+
+            
+                console.log("in 80")
+                const block = new simplechain.Block()
+                const blockchain = new simplechain.Blockchain();
+                block.body = dataResponse.body;
+                blockchain.addBlock(block).then((data) =>{
+                    console.log("data ",data)
+                    dataResponse.hash = data.hash;
+                    dataResponse.height = data.height; 
+                    dataResponse.time = requestTimeStamp;
+                    dataResponse.previousBlockHash = data.previousBlockhash;
+                    //updateAddressObject(address,"",responseData,dataResponse,res,COMMONCONSTANTS.USED,COMMONCONSTANTS.FROM_BLOCK);
+
+                    blockchain.deleteAddress(address).then((da)=>{
+                        //createSignatureObject = (signature,response,signatureStatus)
+                        //responseData.response.signatureDetails = createSignatureObject(signature,responseData.response,COMMONCONSTANTS.FROM_BLOCK);
+
+                        const signObject = signData[0];
+                        responseData.response.signatureDetails = updateSignatureObject(signObject.signature,responseData.response,COMMONCONSTANTS.USED);
+                        console.log("deleteAddress success. new address data: ", responseData)
+                        blockchain.insertAddress(responseData.response).then(()=>{
+                            console.log("in insertaddress")
+                            res.send(dataResponse);
                         }).catch((err)=>{
-                            res.send({"errorEndpoint" : "in /block endpoint",
-                            "error" : "delete address : "+JSON.stringify(err),
-                            "address":address}); 
+                            res.send({
+                                "error" : action+" - insert address : "+JSON.stringify(err),
+                                "address":address
+                            }); 
                         });
-                        
-                    }).catch((err) =>{
-                        console.log("err ",err)
+                    }).catch((err)=>{
+                        console.log("100 err ",err)
                         res.send({
-                            "error" : COMMONCONSTANTS.ERROR,
-                            "message" : err,
-                            "body" : body,
-                            "address" : address
-                        })
+                            "error" : action+" - delete address : "+JSON.stringify(err),
+                            "address":address
+                        }); 
                     });
-                }
-                else{
+
+
+                }).catch((err) =>{
+                    console.log("err ",err)
                     res.send({
-                        "error" : "your message is not verified. kindly verify it",
+                        "error" : COMMONCONSTANTS.ERROR,
+                        "message" : err,
+                        "body" : body,
                         "address" : address
                     })
-                }
+                });
             }
             else{
-                if(responseData.response.blockdataUsageStatus === COMMONCONSTANTS.NOTVALIDATED){
-                    res.send({
-                        "error" : "your message is not verified. kindly verify it",
-                        "address" : address
-                    })
-                }
-                else{
-                    res.send({
-                        "error" : "your have already used the signature. kindly create use a new token",
-                        "address" : address
-                    })
-                }
+                res.send({
+                    "error" : "please validate your signature",
+                    "address" : address
+                })
             }
         }).catch((err)=>{
             res.send({
@@ -131,8 +216,6 @@ app.post("/block",(req,res)=>{
             "address" : address
         })
     }
-    
-
 });
 
 // http://localhost:8000/requestValidation
@@ -155,10 +238,10 @@ app.post("/requestValidation",(req,res)=>{
                 const message = address+":"+currentRequestTimeStamp+":"+starRegistry;
                 const validationWindow = 300;
                 const dataResponse = {
-                    address,"requestTimeStamp" : currentRequestTimeStamp,message,validationWindow,
-                    verify: false,
-                    blockdataUsageStatus : COMMONCONSTANTS.NOTVALIDATED
-
+                    address,
+                    "requestTimeStamp" : currentRequestTimeStamp,
+                    message,
+                    validationWindow
                 };
                 //maintainState.push(dataResponse);
                 blockchain.insertAddress(dataResponse).then();
@@ -205,55 +288,76 @@ app.post("/message-signature/validate",(req,res)=>{
 
     
     blockchain.getAddress(address).then((responseData)=>{
+
+       
         var userData = responseData;
         if(userData == COMMONCONSTANTS.ERROR_ADDRESS_NOT_EXISTS){
             console.log(COMMONCONSTANTS.ERROR_ADDRESS_NOT_EXISTS);
             res.send({"error" : COMMONCONSTANTS.ERROR_ADDRESS_NOT_EXISTS});
         }
         else{
+
+            
+
+
             userData = userData.response;
-            let message = userData.message;
-            console.log(bitcoinMessage.verify(message, address, signature));
-            if(bitcoinMessage.verify(message, address, signature))
-             {
-                var calValidationWindow = getValidationWindowTime(userData.requestTimeStamp);
-                if(calValidationWindow == COMMONCONSTANTS.ERROR_VALIDATION_WINDOW_EXPIRED){
-                    blockchain.deleteAddress(address).then();
-                    res.send({"error" : COMMONCONSTANTS.ERROR_VALIDATION_WINDOW_EXPIRED});
+            if(verifySignatureExistence(userData,signature).length > 0){
+                res.send({"error" : "the signature already exists, kindly use a new signature"});
+            }
+            else{
+
+            
+
+                let message = userData.message;
+                console.log(bitcoinMessage.verify(message, address, signature));
+                if(bitcoinMessage.verify(message, address, signature))
+                {
+                    var calValidationWindow = getValidationWindowTime(userData.requestTimeStamp);
+                    if(calValidationWindow == COMMONCONSTANTS.ERROR_VALIDATION_WINDOW_EXPIRED){
+                        blockchain.deleteAddress(address).then();
+                        res.send({"error" : COMMONCONSTANTS.ERROR_VALIDATION_WINDOW_EXPIRED});
+                    }
+                    else{
+                        const dataResponse = {
+                            registerStar : true,
+                            status: {
+                                address : userData.address,
+                                requestTimeStamp : userData.requestTimeStamp,
+                                message : userData.message,
+                                validationWindow : calValidationWindow,
+                                messageSignature : "valid"
+                            }
+                        };
+                        //updateAddressObject(address,signature,responseData,dataResponse,res,COMMONCONSTANTS.VALIDATED,COMMONCONSTANTS.FROM_MESSAGE_VALIDATE);
+                        //res.send(dataResponse);
+
+                        blockchain.deleteAddress(address).then((da)=>{
+                            responseData.response.signatureDetails = createSignatureObject(signature,responseData.response,COMMONCONSTANTS.VALIDATED);
+                            console.log("deleteAddress success. new address data: ", responseData)
+                            blockchain.insertAddress(responseData.response).then(()=>{
+                                console.log("in insertaddress")
+                                res.send(dataResponse);
+                            }).catch((err)=>{
+                                res.send({
+                                    "error" : action+" - insert address : "+JSON.stringify(err),
+                                    "address":address
+                                }); 
+                            });
+                        }).catch((err)=>{
+                            console.log("100 err ",err)
+                            res.send({
+                                "error" : action+" - delete address : "+JSON.stringify(err),
+                                "address":address
+                            }); 
+                        });
+
+
+                    }
                 }
                 else{
-                    const dataResponse = {
-                        registerStar : true,
-                        status: {
-                            address : userData.address,
-                            requestTimeStamp : userData.requestTimeStamp,
-                            message : userData.message,
-                            validationWindow : calValidationWindow,
-                            messageSignature : "valid"
-                        }
-                    };
-                    blockchain.deleteAddress(address).then(()=>{
-                        responseData.response.verify=true;
-                        responseData.response.blockdataUsageStatus = COMMONCONSTANTS.VALIDATED;
-                        console.log("deleteAddress success ", responseData)
-                        blockchain.insertAddress(responseData.response).then(()=>{
-                            //console.log("deleteAddress success ", responseData)
-                            res.send(dataResponse);
-                        }).catch((err)=>{
-                            res.send({"errorEndpoint" : "in /message-signature/validate endpoint",
-                            "error" : "insert address : "+JSON.stringify(err),
-                            "address":address}); 
-                        });;
-                    }).catch((err)=>{
-                        res.send({"errorEndpoint" : "in /message-signature/validate endpoint",
-                        "error" : "delete address : "+JSON.stringify(err),
-                        "address":address}); 
-                    });
+                    res.send({"error" : "invalid address/signature","address":address});
                 }
-             }
-             else{
-                 res.send({"error" : "invalid address/signature","address":address});
-             }
+            }
         }
     }).catch((err)=>{
         blockchain.deleteAddress(address).then(()=>{
